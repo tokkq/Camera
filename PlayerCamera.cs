@@ -24,16 +24,18 @@ public class PlayerCamera : MonoBehaviour
     float _horizonalRotateDegree;
     [SerializeField, ReadOnly]
     float _verticalRotateDegree;
+    [SerializeField, ReadOnly]
+    float _zoomOffset;
 
     [SerializeField, ReadOnly]
     Vector3 _destination;
     [SerializeField, ReadOnly]
     Vector3 _destinationLookAt;
     [SerializeField, ReadOnly]
+    float _destinationZoomOffset;
+    [SerializeField, ReadOnly]
     Vector3 _lookAt;
 
-    [SerializeField, ReadOnly]
-    Vector3 _destinationTohit;
     [SerializeField, ReadOnly]
     GameObject _obstacle;
 
@@ -78,9 +80,6 @@ public class PlayerCamera : MonoBehaviour
             case CameraTransferState.Lerp:
                 transform.position = Vector3.Lerp(transform.position, _destination, .01f);
                 break;
-            case CameraTransferState.QuartIn:
-                //transform.position = Easing.VectorEasing(Ease.QuartIn, , , , );
-                break;
         }
 
         transform.LookAt(_lookAt, Vector3.up);
@@ -103,16 +102,36 @@ public class PlayerCamera : MonoBehaviour
 
         var obstacleHitPosToLookAt = _getHitPosition(_destinationLookAt - lookAtToDestination, lookAtToDestination * 2f);
         var obstacleHitPosToTarget = _getHitPosition(_target.position, targetToDestination);
-        if (obstacleHitPosToTarget.HasValue && obstacleHitPosToLookAt.HasValue)
+        if ((obstacleHitPosToTarget.HasValue && obstacleHitPosToLookAt.HasValue) || obstacleHitPosToTarget.HasValue)
         {
-            _destinationTohit = obstacleHitPosToTarget.Value - _destination;
-            _destination += _destinationTohit;
+            var destinationToHit = obstacleHitPosToTarget.Value - _destination;
+
+            var direction = Vector3.Normalize(destinationToHit);
+            _destinationZoomOffset = Vector3.Magnitude(destinationToHit);
+
+            if (_zoomOffset < _destinationZoomOffset)
+            {
+                _zoomOffset = _destinationZoomOffset;
+            }
+            else
+            {
+                _zoomOffset = Mathf.Lerp(_zoomOffset, _destinationZoomOffset, 0.01f);
+            }
+
+            _destination += direction * _zoomOffset;
         }
-        else if (obstacleHitPosToTarget.HasValue)
+        else
         {
-            _destinationTohit = obstacleHitPosToTarget.Value - _destination;
-            _destination += _destinationTohit;
+            var destinationToTarget = _target.position - _destination;
+            var direction = Vector3.Normalize(destinationToTarget);
+
+            _zoomOffset = Mathf.Lerp(_zoomOffset, 0, 0.01f);
+            _destination += direction * _zoomOffset;
         }
+
+        var closedRate = _zoomOffset / Vector3.Magnitude(_cameraPositionOffset);
+        var lookAtToTarget = _target.position - _lookAt;
+        _lookAt += lookAtToTarget * closedRate;
     }
 
     Vector3? _getHitPosition(Vector3 origin, Vector3 rayVec)

@@ -15,6 +15,13 @@ public class PlayerCamera : MonoBehaviour
     Vector3 _lookAtPositionOffset;
 
     [SerializeField]
+    float _cameraWallMinDistance = .5f;
+    [SerializeField]
+    float _cameraPlayerMinDistance = .5f;
+    [SerializeField]
+    float _cameraPlayerDistance = 1f;
+
+    [SerializeField]
     CameraState _state;
     [SerializeField]
     CameraTransferState _transferState;
@@ -26,6 +33,8 @@ public class PlayerCamera : MonoBehaviour
     float _verticalRotateDegree;
     [SerializeField, ReadOnly]
     float _zoomOffset;
+    [SerializeField, ReadOnly]
+    float _maxZoomLimit;
 
     [SerializeField, ReadOnly]
     Vector3 _destination;
@@ -68,7 +77,7 @@ public class PlayerCamera : MonoBehaviour
             case CameraState.Chase:
                 _updateSphereRotate();
                 _updateLookAt();
-                _updateDistance();
+                _updateZoom();
                 break;
         }
 
@@ -95,8 +104,10 @@ public class PlayerCamera : MonoBehaviour
         _lookAt = _getLookAtPosition(transform.position, _target.position, _lookAtPositionOffset);
         _destinationLookAt = _getLookAtPosition(_destination, _target.position, _lookAtPositionOffset);
     }
-    void _updateDistance()
+    void _updateZoom()
     {
+        _maxZoomLimit = Vector3.Magnitude(_cameraPositionOffset) - _cameraPlayerMinDistance;
+
         var lookAtToDestination = _destination - _destinationLookAt;
         var targetToDestination = _destination - _target.position;
 
@@ -107,7 +118,19 @@ public class PlayerCamera : MonoBehaviour
             var destinationToHit = obstacleHitPosToTarget.Value - _destination;
 
             var direction = Vector3.Normalize(destinationToHit);
-            _destinationZoomOffset = Vector3.Magnitude(destinationToHit);
+            // 角度に応じて変更必要？
+            _destinationZoomOffset = Vector3.Magnitude(destinationToHit) + _cameraWallMinDistance;
+
+            if (_destinationZoomOffset >= _maxZoomLimit)
+            {
+                _destinationZoomOffset = _maxZoomLimit;
+            }
+
+            if (_destinationZoomOffset > Vector3.Magnitude(_cameraPositionOffset) - _cameraPlayerDistance)
+            {
+                var rate = (Vector3.Magnitude(_cameraPositionOffset) - _destinationZoomOffset - _cameraPlayerMinDistance) / (_cameraPlayerDistance - _cameraPlayerMinDistance);
+                _destination += Vector3.up * rate;
+            }
 
             if (_zoomOffset < _destinationZoomOffset)
             {

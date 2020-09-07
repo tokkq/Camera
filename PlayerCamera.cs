@@ -77,7 +77,8 @@ public class PlayerCamera : MonoBehaviour
             case CameraState.Chase:
                 _updateSphereRotate();
                 _updateLookAt();
-                _updateZoom();
+                //_updateZoom();
+                _updateWall();
                 break;
         }
 
@@ -104,6 +105,42 @@ public class PlayerCamera : MonoBehaviour
         _lookAt = _getLookAtPosition(transform.position, _target.position, _lookAtPositionOffset);
         _destinationLookAt = _getLookAtPosition(_destination, _target.position, _lookAtPositionOffset);
     }
+
+    Vector3 _wallDestination;
+    void _updateWall()
+    {
+        var lookAtToDestination = _destination - _destinationLookAt;
+        var targetToDestination = _destination - _target.position;
+
+        var obstacleHitFromLookAt = _getHit(_destinationLookAt - lookAtToDestination, lookAtToDestination * 2f);
+        var obstacleHitFromTarget = _getHit(_target.position, targetToDestination * 1.1f);
+        if ((obstacleHitFromTarget.HasValue && obstacleHitFromLookAt.HasValue) || obstacleHitFromTarget.HasValue)
+        {
+            var normal = obstacleHitFromTarget.Value.normal;
+            var nextCameraPosition = obstacleHitFromTarget.Value.point + normal * _cameraWallMinDistance;
+
+            var targetAndHitDisntance = Vector3.Distance(obstacleHitFromTarget.Value.point, _target.position);
+            if (Vector3.Magnitude(_cameraPositionOffset) < targetAndHitDisntance)
+            {
+                _wallDestination = Vector3.Lerp(_wallDestination, nextCameraPosition, 0.1f);
+            }
+            else
+            {
+                _wallDestination = nextCameraPosition;
+            }
+        }
+        else
+        {
+            _wallDestination = Vector3.Lerp(_wallDestination, _destination, 0.1f);
+        }
+
+        var closedRate = _zoomOffset / Vector3.Magnitude(_cameraPositionOffset);
+        var lookAtToTarget = _target.position - _lookAt;
+        _lookAt += lookAtToTarget * closedRate;
+
+        _destination = _wallDestination;
+    }
+
     void _updateZoom()
     {
         _maxZoomLimit = Vector3.Magnitude(_cameraPositionOffset) - _cameraPlayerMinDistance;
@@ -111,11 +148,11 @@ public class PlayerCamera : MonoBehaviour
         var lookAtToDestination = _destination - _destinationLookAt;
         var targetToDestination = _destination - _target.position;
 
-        var obstacleHitPosToLookAt = _getHitPosition(_destinationLookAt - lookAtToDestination, lookAtToDestination * 2f);
-        var obstacleHitPosToTarget = _getHitPosition(_target.position, targetToDestination);
+        var obstacleHitPosToLookAt = _getHit(_destinationLookAt - lookAtToDestination, lookAtToDestination * 2f);
+        var obstacleHitPosToTarget = _getHit(_target.position, targetToDestination);
         if ((obstacleHitPosToTarget.HasValue && obstacleHitPosToLookAt.HasValue) || obstacleHitPosToTarget.HasValue)
         {
-            var destinationToHit = obstacleHitPosToTarget.Value - _destination;
+            var destinationToHit = obstacleHitPosToTarget.Value.point - _destination;
 
             var direction = Vector3.Normalize(destinationToHit);
             // 角度に応じて変更必要？
@@ -157,7 +194,7 @@ public class PlayerCamera : MonoBehaviour
         _lookAt += lookAtToTarget * closedRate;
     }
 
-    Vector3? _getHitPosition(Vector3 origin, Vector3 rayVec)
+    RaycastHit? _getHit(Vector3 origin, Vector3 rayVec)
     {
         var results = new RaycastHit[1];
         Physics.RaycastNonAlloc(new Ray(origin, Vector3.Normalize(rayVec)), results, Vector3.Magnitude(rayVec));
@@ -165,7 +202,7 @@ public class PlayerCamera : MonoBehaviour
         if (results[0].transform != null)
         {
             _obstacle = results[0].collider.gameObject;
-            return results[0].point;
+            return results[0];
         }
         else
         {
